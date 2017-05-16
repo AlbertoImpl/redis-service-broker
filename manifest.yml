@@ -1,0 +1,5 @@
+---
+applications:
+  - name: cu-redis-service-broker
+    command: broker
+    buildpack: https://github.com/cloudfoundry/go-buildpack.git
