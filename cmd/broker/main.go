@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/pivotal-cf/brokerapi"
@@ -10,21 +13,40 @@ import (
 )
 
 func main() {
-	brokerLogger := lager.NewLogger("redis-broker")
+	stop := make(chan os.Signal)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	logger := createLogger("redis-broker")
+
+	brokerAPI := createBroker(createCredentials("username", "password"), logger)
+
+	h := &http.Server{Addr: ":" + os.Getenv("PORT"), Handler: brokerAPI}
+
+	go func() {
+		logger.Info("Starting Redis Broker")
+		logger.Fatal("http-listen", h.ListenAndServe())
+	}()
+
+	<-stop
+
+	logger.Info("\nShutting down the server...")
+	h.Shutdown(context.Background())
+	logger.Info("Server gracefully stopped")
+}
+
+func createLogger(component string) lager.Logger {
+	brokerLogger := lager.NewLogger(component)
 	brokerLogger.RegisterSink(lager.NewWriterSink(os.Stdout, lager.DEBUG))
 	brokerLogger.RegisterSink(lager.NewWriterSink(os.Stderr, lager.ERROR))
+	return brokerLogger
+}
 
-	brokerCredentials := brokerapi.BrokerCredentials{
-		Username: "username",
-		Password: "password",
+func createCredentials(username string, password string) brokerapi.BrokerCredentials {
+	return brokerapi.BrokerCredentials{
+		Username: username,
+		Password: password,
 	}
+}
 
-	brokerLogger.Info("Starting Redis Broker")
-
-	serviceBroker := &broker.RedisServiceBroker{}
-
-	brokerAPI := brokerapi.New(serviceBroker, brokerLogger, brokerCredentials)
-	http.Handle("/", brokerAPI)
-
-	brokerLogger.Fatal("http-listen", http.ListenAndServe(":"+os.Getenv("PORT"), nil))
+func createBroker(credentials brokerapi.BrokerCredentials, logger lager.Logger) http.Handler {
+	return brokerapi.New(&broker.RedisServiceBroker{}, logger, credentials)
 }
