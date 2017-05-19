@@ -17,7 +17,7 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	logger := createLogger("redis-broker")
 
-	brokerAPI := createBroker(createCredentials("username", "password"), logger)
+	brokerAPI := createBroker(createCredentials(os.Getenv("SECURITY_USER_NAME"), os.Getenv("SECURITY_USER_PASSWORD")), logger)
 
 	h := &http.Server{Addr: ":" + os.Getenv("PORT"), Handler: brokerAPI}
 

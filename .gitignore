@@ -1,2 +1,4 @@
-.idea/
+product/
+release/
 .envrc
+resources/
